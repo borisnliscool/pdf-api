@@ -37,4 +37,6 @@ COPY --from=builder /app/target/release/pdf-api /usr/local/bin/
 WORKDIR /app
 RUN mkdir tmp
 
+LABEL org.opencontainers.image.source=https://github.com/borisnliscool/pdf-api
+
 CMD ["/usr/local/bin/pdf-api"]
