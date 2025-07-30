@@ -1,0 +1,66 @@
+meta {
+  name: create pdf
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/create
+  body: text
+  auth: inherit
+}
+
+body:text {
+  <!DOCTYPE html>
+  <html lang="en">
+  	<head>
+  		<meta charset="UTF-8" />
+  		<title>Example PDF</title>
+  
+  		<style>
+  			* {
+  				margin: 0;
+  				padding: 0;
+  				box-sizing: border-box;
+  			}
+  		</style>
+  	</head>
+  	<body style="width: 100dvw; height: 100dvh">
+  		<div
+  			style="
+  				width: 100%;
+  				height: 100%;
+  				padding: 6.35mm;
+  				display: flex;
+  				flex-direction: column;
+  				gap: 1rem;
+  			"
+  		>
+  			<h1 style="font-size: 2.5rem">Example PDF</h1>
+  			<p>
+  				This PDF was generated using HTML and
+  				<span style="color: blue">CSS</span>.
+  			</p>
+  
+  			<div
+  				style="
+  					width: 100%;
+  					text-align: center;
+  					padding: 2rem 0;
+  					border: 4px dashed black;
+  					background-color: green;
+  					color: white;
+  					font-weight: 900;
+  				"
+  			>
+  				Very cool styles!
+  			</div>
+  		</div>
+  	</body>
+  </html>
+  
+}
+
+settings {
+  encodeUrl: true
+}
