@@ -810,6 +810,7 @@ dependencies = [
  "anyhow",
  "axum",
  "headless_chrome",
+ "serde",
  "tokio",
  "tower-http",
  "tracing",

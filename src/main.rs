@@ -1,13 +1,28 @@
 use anyhow::Result;
-use std::{fs};
-use axum::response::{Response};
-use axum::Router;
+use axum::response::Response;
 use axum::routing::post;
-use headless_chrome::{Browser, LaunchOptionsBuilder};
+use axum::{Json, Router};
 use headless_chrome::types::PrintToPdfOptions;
+use headless_chrome::{Browser, LaunchOptionsBuilder};
+use serde::Serialize;
+use std::fs;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+
+#[derive(Serialize)]
+enum ErrorType {
+    BadRequest,
+    Internal,
+    FileSystem,
+    Unknown,
+}
+
+#[derive(Serialize)]
+struct Error {
+    message: String,
+    error_type: ErrorType,
+}
 
 fn print_page(page_path: &str) -> Result<Vec<u8>> {
     let browser = Browser::new(
@@ -49,24 +64,62 @@ fn print_page(page_path: &str) -> Result<Vec<u8>> {
     Ok(local_pdf)
 }
 
-async fn handle_post(body: String) -> Response {
-    let cwd = std::env::current_dir().unwrap();
-    let tmp_path = format!("{}/tmp/{}", cwd.as_path().to_str().unwrap(), uuid::Uuid::new_v4().to_string());
+async fn handle_post(body: String) -> Result<Response, Json<Error>> {
+    if body.is_empty() {
+        return Err(Json(Error {
+            message: "Couldn't generate PDF, body is empty".to_string(),
+            error_type: ErrorType::BadRequest,
+        }));
+    }
 
-    fs::create_dir_all(&tmp_path).unwrap();
-    fs::write(format!("{}/index.html", tmp_path), body).unwrap();
+    let cwd = std::env::current_dir().map_err(|err| {
+        Json(Error {
+            message: err.to_string(),
+            error_type: ErrorType::Internal,
+        })
+    })?;
 
-    let local_pdf = print_page(&format!("{}/index.html", tmp_path)).unwrap();
+    let tmp_path = format!(
+        "{}/tmp/{}",
+        cwd.as_path().to_str().unwrap(),
+        uuid::Uuid::new_v4().to_string()
+    );
 
-    let response =  axum::response::Response::builder()
+    fs::create_dir_all(&tmp_path).map_err(|err| {
+        Json(Error {
+            message: err.to_string(),
+            error_type: ErrorType::FileSystem,
+        })
+    })?;
+
+    fs::write(format!("{}/index.html", tmp_path), body).map_err(|err| {
+        Json(Error {
+            message: err.to_string(),
+            error_type: ErrorType::FileSystem,
+        })
+    })?;
+
+    let local_pdf =
+        print_page(&format!("{}/index.html", tmp_path)).map_err(|err| {
+            Json(Error {
+                message: err.to_string(),
+                error_type: ErrorType::Unknown,
+            })
+        })?;
+
+    let response = axum::response::Response::builder()
         .header("Content-Type", "application/pdf")
         .header("Content-Disposition", "attachment; filename=\"file.pdf\"")
         .body(local_pdf.into())
-        .unwrap();
+        .map_err(|err| {
+            Json(Error {
+                message: err.to_string(),
+                error_type: ErrorType::Unknown,
+            })
+        })?;
 
-    fs::remove_dir_all(&tmp_path).unwrap();
-
-    response
+    let _ = fs::remove_dir_all(&tmp_path);
+    Ok(response)
 }
 
 #[tokio::main]
