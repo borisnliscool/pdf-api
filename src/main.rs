@@ -1,10 +1,12 @@
 use anyhow::Result;
+use axum::extract::Query;
 use axum::response::Response;
 use axum::routing::post;
 use axum::{Json, Router};
 use headless_chrome::types::PrintToPdfOptions;
 use headless_chrome::{Browser, LaunchOptionsBuilder};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fs;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -24,7 +26,7 @@ struct Error {
     error_type: ErrorType,
 }
 
-fn print_page(page_path: &str) -> Result<Vec<u8>> {
+fn print_page(page_path: &str, dimensions: (Option<f64>, Option<f64>)) -> Result<Vec<u8>> {
     let browser = Browser::new(
         LaunchOptionsBuilder::default()
             .headless(true)
@@ -40,8 +42,8 @@ fn print_page(page_path: &str) -> Result<Vec<u8>> {
         display_header_footer: None,
         print_background: Some(true),
         scale: None,
-        paper_width: None,
-        paper_height: None,
+        paper_width: dimensions.0,
+        paper_height: dimensions.1,
         margin_top: Some(0f64),
         margin_bottom: Some(0f64),
         margin_left: Some(0f64),
@@ -64,7 +66,10 @@ fn print_page(page_path: &str) -> Result<Vec<u8>> {
     Ok(local_pdf)
 }
 
-async fn handle_post(body: String) -> Result<Response, Json<Error>> {
+async fn handle_post(
+    Query(params): Query<HashMap<String, String>>,
+    body: String,
+) -> Result<Response, Json<Error>> {
     if body.is_empty() {
         return Err(Json(Error {
             message: "Couldn't generate PDF, body is empty".to_string(),
@@ -99,8 +104,11 @@ async fn handle_post(body: String) -> Result<Response, Json<Error>> {
         })
     })?;
 
+    let width = params.get("width").and_then(|s| s.parse::<f64>().ok());
+    let height = params.get("height").and_then(|s| s.parse::<f64>().ok());
+
     let local_pdf =
-        print_page(&format!("{}/index.html", tmp_path)).map_err(|err| {
+        print_page(&format!("{}/index.html", tmp_path), (width, height)).map_err(|err| {
             Json(Error {
                 message: err.to_string(),
                 error_type: ErrorType::Unknown,
