@@ -18,9 +18,9 @@ COPY src src
 COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
 
-RUN cargo build --release
+RUN cargo build --release && strip target/release/pdf-api
 
-FROM debian:stable-slim
+FROM ubuntu:24.04
 
 # Install dependencies for headless Chrome
 RUN apt-get update && \
